@@ -1,0 +1,32 @@
+# Build outputs
+build.ps1
+bin/
+obj/
+.msbuild/
+TestResults/
+UEI.build.dll
+build.ps1
+*.build.dll
+*.pdb
+*.mdb
+
+# Local game/runtime files should not be copied into the source repository.
+BepInEx/
+CasualtiesUnknown_Data/
+MonoBleedingEdge/
+
+# Local configuration, logs, diagnostics, and temp files
+*.log
+*.tmp
+*.bak
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# IDE/editor state
+.vs/
+.vscode/
+.idea/
+.cache/
+封面.psd
