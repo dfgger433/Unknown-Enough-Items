@@ -1,5 +1,7 @@
 <div align="center">
 
+<img src="https://socialify.git.ci/MAakber/Unknown-Enough-Items/image?description=1&font=Inter&forks=1&issues=1&language=1&name=1&owner=1&pattern=Plus&pulls=1&stargazers=1&theme=Auto" alt="Unknown Enough Items social preview">
+
 # UEI - Unknown Enough Items
 
 **A JEI-style item, liquid, and recipe helper for `Casualties Unknown Demo`.**
@@ -49,18 +51,18 @@ It does not bundle game assets, game assemblies, BepInEx, Harmony, Unity assembl
 
 ## 功能 / Features
 
-| 功能                                  | Feature                                                                 |
-| ------------------------------------- | ----------------------------------------------------------------------- |
-| 在原版右键背包界面旁显示 UEI 面板。   | Shows the UEI panel beside the native right-click inventory UI.         |
-| 列出全部运行时物品和液体。            | Lists all runtime items and liquids.                                    |
-| 支持搜索、分类筛选和收藏置顶。        | Supports search, category filtering, and favorite pinning.              |
-| 鼠标悬停复用游戏原生 tooltip 风格。   | Reuses the game's native tooltip style on hover.                        |
-| 左键查看来源配方，右键查看用途配方。  | Left-click opens source recipes, right-click opens usage recipes.       |
-| 配方材料和结果可点击跳转。            | Recipe ingredients and results can jump to related UEI entries.         |
-| 泛材料会显示可用物品 / 液体候选列表。 | Generic ingredients show matching item/liquid candidates.               |
-| 可跳转到原版制作面板并选中对应配方。  | Can jump to the original crafting panel and select the matching recipe. |
-| 适配多人联机模组 KrokMP。             | Adapts to the KrokMP multiplayer mod.                                   |
-| 支持中文和 English。                  | Supports Chinese and English.                                           |
+| 功能                                  | Feature                                                                 |                                                |
+| ------------------------------------- | ----------------------------------------------------------------------- | ---------------------------------------------- |
+| 在原版右键背包界面旁显示 UEI 面板。   | Shows the UEI panel beside the native right-click inventory UI.         | ![1779439656940](image/README/1779439656940.png) |
+| 列出全部运行时物品和液体。            | Lists all runtime items and liquids.                                    | ![1779439722660](image/README/1779439722660.png) |
+| 支持搜索、分类筛选和收藏置顶。        | Supports search, category filtering, and favorite pinning.              | ![1779439878022](image/README/1779439878022.png) |
+| 鼠标悬停复用游戏原生 tooltip 风格。   | Reuses the game's native tooltip style on hover.                        | ![1779439913966](image/README/1779439913966.png) |
+| 左键查看来源配方，右键查看用途配方。  | Left-click opens source recipes, right-click opens usage recipes.       | ![1779440030782](image/README/1779440030782.png) |
+| 配方材料和结果可点击跳转。            | Recipe ingredients and results can jump to related UEI entries.         | -                                              |
+| 泛材料会显示可用物品 / 液体候选列表。 | Generic ingredients show matching item/liquid candidates.               | ![1779440090021](image/README/1779440090021.png) |
+| 可跳转到原版制作面板并选中对应配方。  | Can jump to the original crafting panel and select the matching recipe. | -                                              |
+| 适配多人联机模组 KrokMP。             | Adapts to the KrokMP multiplayer mod.                                   | ![1779439469003](image/README/1779439469003.png) |
+| 支持中文和 English。                  | Supports Chinese and English.                                           | -                                              |
 
 ## 安装 / Install
 
