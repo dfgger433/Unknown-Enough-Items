@@ -14,11 +14,14 @@ using UnityEngine;
 [assembly: AssemblyFileVersion(UeiPlugin.PluginVersion)]
 
 [BepInPlugin(PluginGuid, PluginName, PluginVersion)]
-public sealed class UeiPlugin : BaseUnityPlugin
+public sealed partial class UeiPlugin : BaseUnityPlugin
 {
     public const string PluginGuid = "casualtiesunknown.uei";
     public const string PluginName = "UEI - Unknown Enough Items";
-    public const string PluginVersion = "1.0.2";
+    public const string PluginVersionBase = "1.1";
+#if !UEI_GENERATED_VERSION
+    public const string PluginVersion = PluginVersionBase + ".0";
+#endif
     public const string PluginAuthor = "Aakber (小叶子)";
 
     internal static UeiPlugin Instance = null!;

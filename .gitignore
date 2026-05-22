@@ -1,11 +1,9 @@
 # Build outputs
-build.ps1
 bin/
 obj/
 .msbuild/
 TestResults/
 UEI.build.dll
-build.ps1
 *.build.dll
 *.pdb
 *.mdb
@@ -30,3 +28,4 @@ MonoBleedingEdge/
 .idea/
 .cache/
 封面.psd
+build.ps1

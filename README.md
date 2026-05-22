@@ -5,7 +5,7 @@
 **A JEI-style item, liquid, and recipe helper for `Casualties Unknown Demo`.**
 **一个用于 `Casualties Unknown Demo` 的 JEI 风格物品、液体与配方查询辅助插件。**
 
-![Version](https://img.shields.io/badge/version-0.1.0-blue)
+![Version](https://img.shields.io/badge/version-1.1.x-blue)
 ![BepInEx](https://img.shields.io/badge/BepInEx-plugin-f6c343)
 ![Game](https://img.shields.io/badge/game-Casualties%20Unknown%20Demo-2f2f2f)
 ![UI](https://img.shields.io/badge/UI-%E4%B8%AD%E6%96%87%20%7C%20English-orange)
@@ -59,6 +59,7 @@ It does not bundle game assets, game assemblies, BepInEx, Harmony, Unity assembl
 | 配方材料和结果可点击跳转。            | Recipe ingredients and results can jump to related UEI entries.         |
 | 泛材料会显示可用物品 / 液体候选列表。 | Generic ingredients show matching item/liquid candidates.               |
 | 可跳转到原版制作面板并选中对应配方。  | Can jump to the original crafting panel and select the matching recipe. |
+| 适配多人联机模组 KrokMP。             | Adapts to the KrokMP multiplayer mod.                                   |
 | 支持中文和 English。                  | Supports Chinese and English.                                           |
 
 ## 安装 / Install
@@ -99,9 +100,9 @@ If you need to compile from source manually, prepare:
 - .NET SDK.
 - This repository's source code.
 
-`build.ps1` is a local developer helper and is not part of the GitHub source release. Use the `.csproj` file directly.
+`build.ps1` is the recommended local build helper. It generates the plugin version as `1.1.<git commit count>` before compiling.
 
-`build.ps1` 是本地开发辅助脚本，不随 GitHub 源码发布。公开源码请直接使用 `.csproj` 编译。
+`build.ps1` 是推荐的本地构建脚本。编译前会按 `1.1.<Git 提交数量>` 自动生成插件版本号。
 
 Recommended layout:
 
@@ -123,7 +124,7 @@ Compile from `Tools/UEI`:
 
 ```powershell
 cd "D:\SteamLibrary\steamapps\common\Casualties Unknown Demo\Tools\UEI"
-dotnet build UEI.csproj -c Release
+.\build.ps1
 ```
 
 The project file references assemblies from the local game folder and writes the plugin DLL to:
