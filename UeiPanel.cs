@@ -1254,8 +1254,7 @@ internal sealed class UeiPanel
             return false;
         }
 
-        if (string.Equals(entry.CategoryKey, "unobtainable", StringComparison.OrdinalIgnoreCase)
-            || string.Equals(entry.CategoryKey, "custom", StringComparison.OrdinalIgnoreCase))
+        if (string.Equals(entry.CategoryKey, "unobtainable", StringComparison.OrdinalIgnoreCase))
         {
             return false;
         }
