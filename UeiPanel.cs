@@ -1387,7 +1387,7 @@ internal sealed class UeiPanel
         _detailTitleText.text = DetailModeLabel(_detailMode) + ": " + _selectedEntry.DisplayName;
         _recipePageText.text = links.Count == 0 ? "0/0" : $"{_recipePage + 1}/{_lastRecipePageCount}";
 
-        AddEntrySummary(_recipeContent, _selectedEntry);
+        AddEntrySummary(_recipeContent, _selectedEntry, links.Any(link => link.Recipe != null));
 
         if (links.Count == 0)
         {
@@ -1407,7 +1407,7 @@ internal sealed class UeiPanel
         }
     }
 
-    private void AddEntrySummary(Transform parent, UeiEntry entry)
+    private void AddEntrySummary(Transform parent, UeiEntry entry, bool canJumpOriginalRecipe)
     {
         GameObject row = AddImage(parent, "EntrySummary", new Color(0f, 0f, 0f, 0.40f), raycast: true);
         LayoutElement layout = row.AddComponent<LayoutElement>();
@@ -1427,8 +1427,13 @@ internal sealed class UeiPanel
         textRt.anchorMin = new Vector2(0f, 0f);
         textRt.anchorMax = new Vector2(1f, 1f);
         textRt.offsetMin = new Vector2(44f, 3f);
-        textRt.offsetMax = new Vector2(-32f, -3f);
+        textRt.offsetMax = new Vector2(canJumpOriginalRecipe ? -32f : -6f, -3f);
         text.enableWordWrapping = false;
+
+        if (!canJumpOriginalRecipe)
+        {
+            return;
+        }
 
         Button jump = AddButton(row.transform, "JumpOriginalRecipe", ">", 10f, DetailActionButtonSize, DetailActionButtonSize);
         RectTransform jumpRt = jump.GetComponent<RectTransform>();
