@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
 using TMPro;
 using UnityEngine;
 using UnityEngine.EventSystems;
@@ -36,6 +37,8 @@ internal sealed class UeiPanel
     private const float WheelPageThreshold = 0.1f;
     private const float PointerBoundsPadding = 8f;
     private const float PanelEdgeInset = 18f;
+    private const BindingFlags StaticLookup = BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.FlattenHierarchy;
+    private const BindingFlags InstanceLookup = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
 
     private static readonly Color TransparentBlockerColor = new(0f, 0f, 0f, 0f);
     private static readonly Color CellColor = new(0f, 0f, 0f, 0f);
@@ -845,12 +848,22 @@ internal sealed class UeiPanel
 
         AddScaleSettingRow(_settingsContent);
 
+        bool hasCheatPermission = HasCheatPermission();
+        if (!hasCheatPermission && CheatConfigured())
+        {
+            UeiPlugin.SetCheatEnabled(false);
+        }
+
+        bool cheatEnabled = CheatEnabled();
         AddSettingRow(
             _settingsContent,
             UeiI18n.T("settings.cheat"),
-            CheatEnabled() ? UeiI18n.T("settings.on") : UeiI18n.T("settings.off"),
+            hasCheatPermission
+                ? (cheatEnabled ? UeiI18n.T("settings.on") : UeiI18n.T("settings.off"))
+                : UeiI18n.T("settings.noCommandAccess"),
             ToggleCheatMode,
-            CheatEnabled());
+            cheatEnabled,
+            hasCheatPermission);
 
         AddSettingText(
             _settingsContent,
@@ -861,10 +874,12 @@ internal sealed class UeiPanel
                 UeiPlugin.PluginAuthor));
     }
 
-    private void AddSettingRow(Transform parent, string label, string value, Action action, bool danger = false)
+    private void AddSettingRow(Transform parent, string label, string value, Action action, bool danger = false, bool enabled = true)
     {
         Color rowColor = danger ? new Color(0.55f, 0.04f, 0.02f, 0.72f) : new Color(0f, 0f, 0f, 0.42f);
-        Color labelColor = danger ? new Color(1f, 0.34f, 0.28f, 1f) : TextColor;
+        Color labelColor = enabled
+            ? (danger ? new Color(1f, 0.34f, 0.28f, 1f) : TextColor)
+            : MutedTextColor;
         GameObject row = AddImage(parent, "SettingRow", rowColor, raycast: true);
         LayoutElement rowLayout = row.AddComponent<LayoutElement>();
         rowLayout.preferredHeight = 30f;
@@ -888,14 +903,21 @@ internal sealed class UeiPanel
 
         Button button = AddButton(row.transform, "Value", value, 10f, 22f, 82f);
         TextMeshProUGUI buttonText = button.GetComponentInChildren<TextMeshProUGUI>();
-        if (buttonText != null && danger)
+        if (buttonText != null && (danger || !enabled))
         {
             buttonText.color = labelColor;
         }
         LayoutElement buttonLayout = button.GetComponent<LayoutElement>();
         buttonLayout.preferredWidth = 92f;
         buttonLayout.minWidth = 82f;
-        button.onClick.AddListener(() => action());
+        ColorBlock colors = button.colors;
+        colors.disabledColor = new Color(0.58f, 0.58f, 0.58f, 0.55f);
+        button.colors = colors;
+        button.interactable = enabled;
+        if (enabled)
+        {
+            button.onClick.AddListener(() => action());
+        }
     }
 
     private void AddScaleSettingRow(Transform parent)
@@ -994,10 +1016,204 @@ internal sealed class UeiPanel
         return Mathf.Clamp(value, 0.85f, 1.3f);
     }
 
-    private static bool CheatEnabled()
+    private static bool CheatConfigured()
     {
         try { return UeiPlugin.CheatEnabled.Value; }
         catch { return false; }
+    }
+
+    private static bool CheatEnabled()
+    {
+        return CheatConfigured() && HasCheatPermission();
+    }
+
+    private static bool HasCheatPermission()
+    {
+        return HasVanillaCommandAccess() && HasKrokoshaCommandAccess();
+    }
+
+    private static bool HasVanillaCommandAccess()
+    {
+        try
+        {
+            ConsoleScript? console = ConsoleScript.instance;
+            if (console == null || !console.enabled || console.gameObject == null || !console.gameObject.activeInHierarchy)
+            {
+                return false;
+            }
+
+            if (console.consoleCanvas == null || console.consoleRect == null)
+            {
+                return false;
+            }
+
+            try
+            {
+                if (KeyBinds.GetBind("console") == KeyCode.None)
+                {
+                    return false;
+                }
+            }
+            catch
+            {
+            }
+
+            return ConsoleScript.SearchExact("spawn") != null;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private static bool HasKrokoshaCommandAccess()
+    {
+        Type? mpType = FindLoadedType("KrokoshaCasualtiesMP.KrokoshaScavMultiplayer");
+        Type? conType = FindLoadedType("KrokoshaCasualtiesMP.Con");
+        if (mpType == null || conType == null)
+        {
+            return true;
+        }
+
+        bool? networkRunning = TryReadStaticBool(mpType, "network_system_is_running");
+        if (networkRunning != true)
+        {
+            return true;
+        }
+
+        bool? canCheat = TryInvokeStaticBool(conType, "CanCheat");
+        bool? canExecuteCommands = TryInvokeStaticBool(conType, "CanExecuteAdminCommands");
+        if (canCheat.HasValue && canExecuteCommands.HasValue)
+        {
+            return canCheat.Value && canExecuteCommands.Value;
+        }
+
+        if (canCheat == false || canExecuteCommands == false)
+        {
+            return false;
+        }
+
+        bool? isServer = TryReadStaticBool(mpType, "is_server");
+        if (isServer == true)
+        {
+            return TryReadKrokoshaRuleBool(mpType, "sv_cheats") == true;
+        }
+
+        bool? clientIsAdmin = TryReadStaticBool(conType, "client_isadmin");
+        bool? clientCheatsAllowed = TryReadKrokoshaRuleBool(mpType, "AllowClientCheatCommands");
+        if (clientIsAdmin.HasValue || clientCheatsAllowed.HasValue)
+        {
+            return clientIsAdmin == true && clientCheatsAllowed == true;
+        }
+
+        return false;
+    }
+
+    private static bool? TryReadKrokoshaRuleBool(Type mpType, string name)
+    {
+        object? rules = TryReadStaticMember(mpType, "rules");
+        return TryReadInstanceBool(rules, name);
+    }
+
+    private static Type? FindLoadedType(string fullName)
+    {
+        try
+        {
+            Type? direct = Type.GetType(fullName, throwOnError: false);
+            if (direct != null)
+            {
+                return direct;
+            }
+
+            foreach (Assembly assembly in AppDomain.CurrentDomain.GetAssemblies())
+            {
+                Type? type = assembly.GetType(fullName, throwOnError: false);
+                if (type != null)
+                {
+                    return type;
+                }
+            }
+        }
+        catch
+        {
+        }
+
+        return null;
+    }
+
+    private static bool? TryInvokeStaticBool(Type type, string methodName)
+    {
+        try
+        {
+            MethodInfo? method = type.GetMethod(methodName, StaticLookup, null, Type.EmptyTypes, null);
+            if (method?.Invoke(null, null) is bool value)
+            {
+                return value;
+            }
+        }
+        catch
+        {
+        }
+
+        return null;
+    }
+
+    private static bool? TryReadStaticBool(Type type, string name)
+    {
+        object? value = TryReadStaticMember(type, name);
+        return value is bool flag ? flag : null;
+    }
+
+    private static object? TryReadStaticMember(Type type, string name)
+    {
+        try
+        {
+            PropertyInfo? property = type.GetProperty(name, StaticLookup);
+            if (property != null)
+            {
+                return property.GetValue(null, null);
+            }
+
+            FieldInfo? field = type.GetField(name, StaticLookup);
+            if (field != null)
+            {
+                return field.GetValue(null);
+            }
+        }
+        catch
+        {
+        }
+
+        return null;
+    }
+
+    private static bool? TryReadInstanceBool(object? instance, string name)
+    {
+        if (instance == null)
+        {
+            return null;
+        }
+
+        try
+        {
+            Type type = instance.GetType();
+            PropertyInfo? property = type.GetProperty(name, InstanceLookup);
+            if (property?.GetValue(instance, null) is bool propertyValue)
+            {
+                return propertyValue;
+            }
+
+            FieldInfo? field = type.GetField(name, InstanceLookup);
+            if (field?.GetValue(instance) is bool fieldValue)
+            {
+                return fieldValue;
+            }
+        }
+        catch
+        {
+        }
+
+        return null;
     }
 
     private void CycleLanguageMode()
@@ -1086,7 +1302,14 @@ internal sealed class UeiPanel
 
     private void ToggleCheatMode()
     {
-        UeiPlugin.SetCheatEnabled(!CheatEnabled());
+        if (!HasCheatPermission())
+        {
+            UeiPlugin.SetCheatEnabled(false);
+            RefreshSettings();
+            return;
+        }
+
+        UeiPlugin.SetCheatEnabled(!CheatConfigured());
         RefreshSettings();
     }
 
@@ -1272,7 +1495,7 @@ internal sealed class UeiPanel
 
     private static bool TryCheatGiveItem(UeiEntry entry)
     {
-        if (!IsLegalCheatItem(entry))
+        if (!HasCheatPermission() || !IsLegalCheatItem(entry))
         {
             return false;
         }
