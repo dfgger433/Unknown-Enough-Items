@@ -100,9 +100,9 @@ If you need to compile from source manually, prepare:
 - .NET SDK.
 - This repository's source code.
 
-`build.ps1` is the recommended local build helper. It generates the plugin version as `1.1.<git commit count>` before compiling.
+Release builds use an internal local helper to generate the plugin version as `1.1.<git commit count>`.Public source builds can use the `.csproj` file directly and will fall back to the baseline source version.
 
-`build.ps1` 是推荐的本地构建脚本。编译前会按 `1.1.<Git 提交数量>` 自动生成插件版本号。
+Release 构建会使用内部本地脚本按 `1.1.<Git 提交数量>` 生成插件版本号。公开源码构建可以直接使用 `.csproj`，并会回退到源码中的基线版本号。
 
 Recommended layout:
 
@@ -124,7 +124,7 @@ Compile from `Tools/UEI`:
 
 ```powershell
 cd "D:\SteamLibrary\steamapps\common\Casualties Unknown Demo\Tools\UEI"
-.\build.ps1
+dotnet build UEI.csproj -c Release
 ```
 
 The project file references assemblies from the local game folder and writes the plugin DLL to:
