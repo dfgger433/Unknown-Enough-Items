@@ -1088,21 +1088,6 @@ internal sealed class UeiPanel
         Image icon = AddIcon(cell.transform, "Icon", entry.Icon, entry.IconColor, 38f);
         icon.raycastTarget = false;
 
-        Button favorite = AddButton(cell.transform, "Favorite", entry.IsFavorite ? "*" : "+", 8f, 12f, 12f);
-        RectTransform favRt = favorite.GetComponent<RectTransform>();
-        favRt.anchorMin = new Vector2(1f, 1f);
-        favRt.anchorMax = new Vector2(1f, 1f);
-        favRt.pivot = new Vector2(1f, 1f);
-        favRt.anchoredPosition = Vector2.zero;
-        favRt.sizeDelta = new Vector2(12f, 12f);
-        LayoutElement favLayout = favorite.GetComponent<LayoutElement>();
-        favLayout.ignoreLayout = true;
-        favorite.onClick.AddListener(() =>
-        {
-            UeiFavorites.Toggle(entry.EntryKey);
-            _dirty = true;
-            RefreshGrid();
-        });
     }
 
     private void AddEmptyCell()
@@ -1251,43 +1236,6 @@ internal sealed class UeiPanel
         }
     }
 
-    private void JumpToCurrentOriginalRecipe(UeiEntry entry)
-    {
-        try
-        {
-            Recipe? recipe = CurrentRecipeLinks()
-                .Skip(_recipePage * RecipePageSize)
-                .Select(link => link.Recipe)
-                .FirstOrDefault(r => r != null);
-            if (recipe != null && JumpToOriginalRecipe(recipe))
-            {
-                _statusMessage = UeiI18n.T("status.jumpRecipe");
-                return;
-            }
-
-            if (entry.Kind == UeiEntryKind.Item)
-            {
-                Item? owned = FindOwnedItem(entry.Id);
-                if (owned != null)
-                {
-                    PlayerCamera.main.SeeRecipesWithItem(owned);
-                    _statusMessage = UeiI18n.T("status.recipes");
-                    return;
-                }
-            }
-
-            _statusMessage = UeiI18n.T("status.jumpNoRecipe");
-        }
-        catch (Exception ex)
-        {
-            _statusMessage = UeiI18n.T("status.jumpFailed");
-            UeiPlugin.LogWarning($"Failed to jump to original recipe for {entry.EntryKey}: {ex.Message}");
-        }
-
-        _detailDirty = true;
-        RefreshDetail();
-    }
-
     private static bool JumpToOriginalRecipe(Recipe recipe)
     {
         PlayerCamera camera = PlayerCamera.main;
@@ -1360,6 +1308,24 @@ internal sealed class UeiPanel
         }
     }
 
+    private static bool IsOriginalRecipePinned(Recipe recipe)
+    {
+        try
+        {
+            PlayerCamera camera = PlayerCamera.main;
+            if (camera == null || !camera.pinnedRecipe.HasValue)
+            {
+                return false;
+            }
+
+            return camera.pinnedRecipe.Value == OriginalRecipeIndex(recipe);
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
     private void RefreshDetail()
     {
         _detailDirty = false;
@@ -1387,7 +1353,11 @@ internal sealed class UeiPanel
         _detailTitleText.text = DetailModeLabel(_detailMode) + ": " + _selectedEntry.DisplayName;
         _recipePageText.text = links.Count == 0 ? "0/0" : $"{_recipePage + 1}/{_lastRecipePageCount}";
 
-        AddEntrySummary(_recipeContent, _selectedEntry, links.Any(link => link.Recipe != null));
+        Recipe? currentRecipe = links
+            .Skip(_recipePage * RecipePageSize)
+            .Select(link => link.Recipe)
+            .FirstOrDefault(r => r != null);
+        AddEntrySummary(_recipeContent, _selectedEntry, currentRecipe);
 
         if (links.Count == 0)
         {
@@ -1407,7 +1377,7 @@ internal sealed class UeiPanel
         }
     }
 
-    private void AddEntrySummary(Transform parent, UeiEntry entry, bool canJumpOriginalRecipe)
+    private void AddEntrySummary(Transform parent, UeiEntry entry, Recipe? recipe)
     {
         GameObject row = AddImage(parent, "EntrySummary", new Color(0f, 0f, 0f, 0.40f), raycast: true);
         LayoutElement layout = row.AddComponent<LayoutElement>();
@@ -1427,10 +1397,30 @@ internal sealed class UeiPanel
         textRt.anchorMin = new Vector2(0f, 0f);
         textRt.anchorMax = new Vector2(1f, 1f);
         textRt.offsetMin = new Vector2(44f, 3f);
-        textRt.offsetMax = new Vector2(canJumpOriginalRecipe ? -32f : -6f, -3f);
+        textRt.offsetMax = new Vector2(recipe != null ? -58f : -32f, -3f);
         text.enableWordWrapping = false;
 
-        if (!canJumpOriginalRecipe)
+        Button favorite = AddButton(row.transform, "FavoriteEntry", entry.IsFavorite ? "*" : "+", 10f, DetailActionButtonSize, DetailActionButtonSize);
+        RectTransform favoriteRt = favorite.GetComponent<RectTransform>();
+        favoriteRt.anchorMin = new Vector2(1f, 0.5f);
+        favoriteRt.anchorMax = new Vector2(1f, 0.5f);
+        favoriteRt.pivot = new Vector2(1f, 0.5f);
+        favoriteRt.anchoredPosition = new Vector2(recipe != null ? -31f : -5f, 0f);
+        favoriteRt.sizeDelta = new Vector2(DetailActionButtonSize, DetailActionButtonSize);
+        LayoutElement favoriteLayout = favorite.GetComponent<LayoutElement>();
+        favoriteLayout.ignoreLayout = true;
+        favoriteLayout.preferredWidth = DetailActionButtonSize;
+        favoriteLayout.minWidth = DetailActionButtonSize;
+        favorite.onClick.AddListener(() =>
+        {
+            UeiFavorites.Toggle(entry.EntryKey);
+            _dirty = true;
+            _detailDirty = true;
+            RefreshGrid();
+            RefreshDetail();
+        });
+
+        if (recipe == null)
         {
             return;
         }
@@ -1446,8 +1436,57 @@ internal sealed class UeiPanel
         jumpLayout.ignoreLayout = true;
         jumpLayout.preferredWidth = DetailActionButtonSize;
         jumpLayout.minWidth = DetailActionButtonSize;
-        jump.onClick.AddListener(() => JumpToCurrentOriginalRecipe(entry));
+        jump.onClick.AddListener(() => JumpToDisplayedRecipe(recipe));
         BindTooltip(jump.gameObject, UeiI18n.T("button.jumpRecipe"), UeiI18n.T("button.jumpRecipe.desc"));
+    }
+
+    private void JumpToDisplayedRecipe(Recipe recipe)
+    {
+        try
+        {
+            _statusMessage = JumpToOriginalRecipe(recipe)
+                ? UeiI18n.T("status.jumpRecipe")
+                : UeiI18n.T("status.jumpFailed");
+        }
+        catch (Exception ex)
+        {
+            _statusMessage = UeiI18n.T("status.jumpFailed");
+            UeiPlugin.LogWarning($"Failed to jump to original recipe for {SafeRecipeName(recipe)}: {ex.Message}");
+        }
+    }
+
+    private void PinDisplayedRecipe(Recipe recipe)
+    {
+        try
+        {
+            PlayerCamera camera = PlayerCamera.main;
+            if (camera == null)
+            {
+                _statusMessage = UeiI18n.T("status.pinFailed");
+                return;
+            }
+
+            int index = OriginalRecipeIndex(recipe);
+            if (index < 0)
+            {
+                _statusMessage = UeiI18n.T("status.pinFailed");
+                return;
+            }
+
+            camera.selectedRecipe = index;
+            camera.PinRecipe();
+            bool pinned = camera.pinnedRecipe.HasValue && camera.pinnedRecipe.Value == index;
+            _statusMessage = pinned ? UeiI18n.T("status.pinRecipe") : UeiI18n.T("status.unpinRecipe");
+        }
+        catch (Exception ex)
+        {
+            _statusMessage = UeiI18n.T("status.pinFailed");
+            UeiPlugin.LogWarning($"Failed to pin original recipe for {SafeRecipeName(recipe)}: {ex.Message}");
+        }
+        finally
+        {
+            _detailDirty = true;
+        }
     }
 
     private void AddRecipeCard(Transform parent, UeiRecipeLink link, Recipe recipe)
@@ -1468,8 +1507,32 @@ internal sealed class UeiPanel
         titleRt.offsetMax = new Vector2(-6f, -4f);
         title.enableWordWrapping = false;
 
+        AddRecipePinButton(card.transform, recipe);
         AddRecipeResult(card.transform, recipe);
         AddRecipeIngredients(card.transform, recipe);
+    }
+
+    private void AddRecipePinButton(Transform parent, Recipe recipe)
+    {
+        Button pin = AddButton(parent, "PinOriginalRecipe", "*", 10f, DetailActionButtonSize, DetailActionButtonSize);
+        RectTransform pinRt = pin.GetComponent<RectTransform>();
+        pinRt.anchorMin = new Vector2(1f, 1f);
+        pinRt.anchorMax = new Vector2(1f, 1f);
+        pinRt.pivot = new Vector2(1f, 1f);
+        pinRt.anchoredPosition = new Vector2(-8f, -42f);
+        pinRt.sizeDelta = new Vector2(DetailActionButtonSize, DetailActionButtonSize);
+        LayoutElement pinLayout = pin.GetComponent<LayoutElement>();
+        pinLayout.ignoreLayout = true;
+        pinLayout.preferredWidth = DetailActionButtonSize;
+        pinLayout.minWidth = DetailActionButtonSize;
+        TextMeshProUGUI pinText = pin.GetComponentInChildren<TextMeshProUGUI>();
+        if (pinText != null && IsOriginalRecipePinned(recipe))
+        {
+            pinText.color = new Color(0.45f, 1f, 0.45f, 1f);
+        }
+
+        pin.onClick.AddListener(() => PinDisplayedRecipe(recipe));
+        BindTooltip(pin.gameObject, UeiI18n.T("button.pinRecipe"), UeiI18n.T("button.pinRecipe.desc"));
     }
 
     private void AddRecipeResult(Transform parent, Recipe recipe)
