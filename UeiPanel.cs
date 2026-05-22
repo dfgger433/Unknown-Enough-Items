@@ -345,6 +345,36 @@ internal sealed class UeiPanel
             _lastPageCount);
     }
 
+    public bool ShowItemUses(Item item)
+    {
+        try
+        {
+            if (item == null || string.IsNullOrWhiteSpace(item.id))
+            {
+                return false;
+            }
+
+            if (!UeiCatalog.TryGetEntry(UeiEntryKind.Item, item.id, out UeiEntry? entry) || entry == null)
+            {
+                return false;
+            }
+
+            if (_settingsOpen)
+            {
+                CloseSettings();
+            }
+
+            FocusGridEntry(entry);
+            SelectEntry(entry, UeiRecipeRelation.UsedIn, linkOriginalRecipe: false);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            UeiPlugin.LogWarning($"Failed to open UEI uses for inventory item: {ex.Message}");
+            return false;
+        }
+    }
+
     private void BeginShow()
     {
         _wantsVisible = true;
@@ -1196,6 +1226,25 @@ internal sealed class UeiPanel
         _dirty = true;
         RefreshGrid();
         RefreshDetail();
+    }
+
+    private void FocusGridEntry(UeiEntry entry)
+    {
+        List<UeiEntry> filtered = FilterEntries().ToList();
+        int index = filtered.FindIndex(x => string.Equals(x.EntryKey, entry.EntryKey, StringComparison.OrdinalIgnoreCase));
+        if (index < 0)
+        {
+            _categoryIndex = 0;
+            _searchText = string.Empty;
+            _searchInput.SetTextWithoutNotify(string.Empty);
+            filtered = FilterEntries().ToList();
+            index = filtered.FindIndex(x => string.Equals(x.EntryKey, entry.EntryKey, StringComparison.OrdinalIgnoreCase));
+        }
+
+        if (index >= 0)
+        {
+            _page = index / PageSize;
+        }
     }
 
     private static bool IsLegalCheatItem(UeiEntry entry)

@@ -1,7 +1,9 @@
 using System;
+using System.Collections.Generic;
 using System.Text;
 using HarmonyLib;
 using UnityEngine;
+using UnityEngine.EventSystems;
 
 internal sealed class UeiRuntime : MonoBehaviour
 {
@@ -16,6 +18,7 @@ internal sealed class UeiRuntime : MonoBehaviour
     private bool _loggedUpdateActive;
     private bool _loggedLateUpdateActive;
     private bool _loggedPatchTickActive;
+    private int _lastInventoryUseShortcutFrame = -1;
     private string _lastHideReason = string.Empty;
     private string _lastTickSource = "none";
     private string _lastStateSnapshot = string.Empty;
@@ -243,7 +246,51 @@ internal sealed class UeiRuntime : MonoBehaviour
 
         _loggedWaitingForData = false;
         _panel?.Show(camera);
+        HandleInventoryUseShortcut(camera);
         LogStateSnapshot(source, camera, true, "shown");
+    }
+
+    private void HandleInventoryUseShortcut(PlayerCamera camera)
+    {
+        if (_panel == null || _panel.IsTextInputFocused || _lastInventoryUseShortcutFrame == Time.frameCount)
+        {
+            return;
+        }
+
+        if (!Input.GetKeyDown(KeyCode.U) || camera.dragItem != null)
+        {
+            return;
+        }
+
+        try
+        {
+            List<RaycastResult> uiCasts = UIUtil.GetEventSystemRaycastResults();
+            foreach (RaycastResult uiCast in uiCasts)
+            {
+                if (!uiCast.gameObject.TryGetComponent<InvButton>(out InvButton button) || !button.Overlaps(uiCasts))
+                {
+                    continue;
+                }
+
+                Item item = button.GetItem();
+                if (item == null)
+                {
+                    continue;
+                }
+
+                _lastInventoryUseShortcutFrame = Time.frameCount;
+                if (_panel.ShowItemUses(item))
+                {
+                    camera.PlayUISound(PlayerCamera.UISoundType.MiniClick);
+                }
+                return;
+            }
+        }
+        catch (Exception ex)
+        {
+            _lastInventoryUseShortcutFrame = Time.frameCount;
+            UeiPlugin.LogWarning($"UEI inventory use shortcut failed: {ex.Message}");
+        }
     }
 
     private void EnsurePanel(Canvas canvas)
