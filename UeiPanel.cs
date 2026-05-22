@@ -69,6 +69,8 @@ internal sealed class UeiPanel
     private TextMeshProUGUI _recipePageText = null!;
     private TextMeshProUGUI _settingsTitleText = null!;
     private TextMeshProUGUI _settingsButtonText = null!;
+    private TextMeshProUGUI _scaleValueText = null!;
+    private Slider _scaleSlider = null!;
     private readonly TextMeshProUGUI _selectionText;
     private LayoutElement _gridFrameLayout = null!;
     private const float PanelSpacing = 6f;
@@ -99,6 +101,7 @@ internal sealed class UeiPanel
     private string _statusMessage = string.Empty;
     private UeiRecipeRelation _detailMode = UeiRecipeRelation.ProducedBy;
     private UeiEntry? _selectedEntry;
+    private float _pendingPanelScale;
 
     public UeiPanel(Canvas canvas)
     {
@@ -758,6 +761,7 @@ internal sealed class UeiPanel
         ClearNativeTooltip();
         _detailPanel.SetActive(false);
         _settingsPanel.SetActive(true);
+        _pendingPanelScale = CurrentPanelScale();
         RefreshSettings();
     }
 
@@ -809,11 +813,7 @@ internal sealed class UeiPanel
             CurrentPositionLabel(),
             CyclePanelPosition);
 
-        AddSettingRow(
-            _settingsContent,
-            UeiI18n.T("settings.scale"),
-            CurrentScaleLabel(),
-            CyclePanelScale);
+        AddScaleSettingRow(_settingsContent);
 
         AddSettingRow(
             _settingsContent,
@@ -866,6 +866,58 @@ internal sealed class UeiPanel
         buttonLayout.preferredWidth = 92f;
         buttonLayout.minWidth = 82f;
         button.onClick.AddListener(() => action());
+    }
+
+    private void AddScaleSettingRow(Transform parent)
+    {
+        GameObject row = AddImage(parent, "SettingScaleRow", new Color(0f, 0f, 0f, 0.42f), raycast: true);
+        LayoutElement rowLayout = row.AddComponent<LayoutElement>();
+        rowLayout.preferredHeight = 30f;
+        rowLayout.minHeight = 30f;
+        AddPixelBorder(row.transform, PixelBorderColor, 1f);
+
+        HorizontalLayoutGroup group = row.AddComponent<HorizontalLayoutGroup>();
+        group.padding = new RectOffset(6, 4, 3, 3);
+        group.spacing = 6f;
+        group.childAlignment = TextAnchor.MiddleCenter;
+        group.childControlWidth = true;
+        group.childControlHeight = true;
+        group.childForceExpandWidth = false;
+        group.childForceExpandHeight = false;
+
+        TextMeshProUGUI labelText = AddText(row.transform, "Label", UeiI18n.T("settings.scale"), 10f, TextColor, TextAlignmentOptions.MidlineLeft);
+        LayoutElement labelLayout = labelText.GetOrAddLayoutElement();
+        labelLayout.preferredWidth = 48f;
+        labelLayout.minWidth = 40f;
+        labelLayout.preferredHeight = 22f;
+        labelText.enableWordWrapping = false;
+
+        _scaleSlider = AddSlider(row.transform, "ScaleSlider", 85f, 130f, Mathf.RoundToInt(_pendingPanelScale * 100f));
+        LayoutElement sliderLayout = _scaleSlider.GetComponent<LayoutElement>();
+        sliderLayout.flexibleWidth = 1f;
+        sliderLayout.minWidth = 80f;
+        sliderLayout.preferredHeight = 22f;
+        _scaleSlider.onValueChanged.AddListener(value =>
+        {
+            _pendingPanelScale = Mathf.Round(value) / 100f;
+            if (_scaleValueText != null)
+            {
+                _scaleValueText.text = CurrentScaleLabel(_pendingPanelScale);
+            }
+        });
+
+        _scaleValueText = AddText(row.transform, "Value", CurrentScaleLabel(_pendingPanelScale), 10f, TextColor, TextAlignmentOptions.Center);
+        LayoutElement valueLayout = _scaleValueText.GetOrAddLayoutElement();
+        valueLayout.preferredWidth = 38f;
+        valueLayout.minWidth = 38f;
+        valueLayout.preferredHeight = 22f;
+        _scaleValueText.enableWordWrapping = false;
+
+        Button apply = AddButton(row.transform, "ApplyScale", UeiI18n.T("settings.apply"), 10f, 22f, 48f);
+        LayoutElement applyLayout = apply.GetComponent<LayoutElement>();
+        applyLayout.preferredWidth = 50f;
+        applyLayout.minWidth = 48f;
+        apply.onClick.AddListener(ApplyPendingPanelScale);
     }
 
     private void AddSettingText(Transform parent, string text)
@@ -976,6 +1028,11 @@ internal sealed class UeiPanel
         return Mathf.RoundToInt(CurrentPanelScale() * 100f) + "%";
     }
 
+    private static string CurrentScaleLabel(float scale)
+    {
+        return Mathf.RoundToInt(scale * 100f) + "%";
+    }
+
     private void CyclePanelScale()
     {
         float current = CurrentPanelScale();
@@ -984,6 +1041,14 @@ internal sealed class UeiPanel
             : current < 1.23f ? 1.3f
             : 0.85f;
         UeiPlugin.SetPanelScale(next);
+        _lastScreenWidth = -1;
+        _lastScreenHeight = -1;
+        RefreshSettings();
+    }
+
+    private void ApplyPendingPanelScale()
+    {
+        UeiPlugin.SetPanelScale(_pendingPanelScale);
         _lastScreenWidth = -1;
         _lastScreenHeight = -1;
         RefreshSettings();
@@ -2283,6 +2348,55 @@ internal sealed class UeiPanel
         text.overflowMode = TextOverflowModes.Ellipsis;
         text.rectTransform.SetStretch();
         return button;
+    }
+
+    private Slider AddSlider(Transform parent, string name, float minValue, float maxValue, float value)
+    {
+        GameObject go = NewUiObject(name, parent);
+        LayoutElement layout = go.AddComponent<LayoutElement>();
+        layout.preferredHeight = 22f;
+        layout.minHeight = 22f;
+
+        Slider slider = go.AddComponent<Slider>();
+        slider.minValue = minValue;
+        slider.maxValue = maxValue;
+        slider.wholeNumbers = true;
+        slider.value = Mathf.Clamp(value, minValue, maxValue);
+        slider.direction = Slider.Direction.LeftToRight;
+
+        GameObject track = AddImage(go.transform, "Track", SearchColor, raycast: true);
+        RectTransform trackRt = track.GetComponent<RectTransform>();
+        trackRt.anchorMin = new Vector2(0f, 0.5f);
+        trackRt.anchorMax = new Vector2(1f, 0.5f);
+        trackRt.pivot = new Vector2(0.5f, 0.5f);
+        trackRt.offsetMin = new Vector2(0f, -4f);
+        trackRt.offsetMax = new Vector2(0f, 4f);
+        AddPixelBorder(track.transform, PixelBorderColor, 1f);
+
+        GameObject fill = AddImage(go.transform, "Fill", new Color(0.72f, 0.76f, 0.78f, 0.65f), raycast: false);
+        RectTransform fillRt = fill.GetComponent<RectTransform>();
+        fillRt.anchorMin = new Vector2(0f, 0.5f);
+        fillRt.anchorMax = new Vector2(0f, 0.5f);
+        fillRt.pivot = new Vector2(0f, 0.5f);
+        fillRt.offsetMin = new Vector2(1f, -3f);
+        fillRt.offsetMax = new Vector2(-1f, 3f);
+
+        GameObject handleArea = NewUiObject("HandleSlideArea", go.transform);
+        RectTransform handleAreaRt = handleArea.GetComponent<RectTransform>();
+        handleAreaRt.SetStretch();
+
+        GameObject handle = AddImage(handleArea.transform, "Handle", TextColor, raycast: true);
+        RectTransform handleRt = handle.GetComponent<RectTransform>();
+        handleRt.anchorMin = new Vector2(0f, 0.5f);
+        handleRt.anchorMax = new Vector2(0f, 0.5f);
+        handleRt.pivot = new Vector2(0.5f, 0.5f);
+        handleRt.sizeDelta = new Vector2(10f, 18f);
+        AddPixelBorder(handle.transform, SearchColor, 1f);
+
+        slider.fillRect = fillRt;
+        slider.handleRect = handleRt;
+        slider.targetGraphic = handle.GetComponent<Image>();
+        return slider;
     }
 
     private void AddGearIcon(Transform parent)

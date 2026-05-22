@@ -18,7 +18,7 @@ public sealed class UeiPlugin : BaseUnityPlugin
 {
     public const string PluginGuid = "casualtiesunknown.uei";
     public const string PluginName = "UEI - Unknown Enough Items";
-    public const string PluginVersion = "0.1.0";
+    public const string PluginVersion = "1.0.2";
     public const string PluginAuthor = "Aakber (小叶子)";
 
     internal static UeiPlugin Instance = null!;
