@@ -102,9 +102,9 @@ If you need to compile from source manually, prepare:
 - .NET SDK.
 - This repository's source code.
 
-Release builds use an internal local helper to generate the plugin version as `1.1.<git commit count>`.Public source builds can use the `.csproj` file directly and will fall back to the baseline source version.
+Release builds use the version declared in `Plugin.cs`/`UEI.csproj`. Update those files before creating a new release build.
 
-Release 构建会使用内部本地脚本按 `1.1.<Git 提交数量>` 生成插件版本号。公开源码构建可以直接使用 `.csproj`，并会回退到源码中的基线版本号。
+Release 构建会使用 `Plugin.cs`/`UEI.csproj` 中声明的版本号。创建新版本前请先更新这些文件。
 
 Recommended layout:
 

@@ -24,6 +24,7 @@ internal sealed class UeiPanel
     private const float SearchHorizontalPadding = 5f;
     private const float SearchVerticalPadding = 2f;
     private const float SettingsButtonWidth = 22f;
+    private const float ReviveButtonWidth = 22f;
     private const int RecipePageSize = 2;
     private const float DetailPanelWidth = 310f;
     private const float DetailGap = 12f;
@@ -66,6 +67,7 @@ internal sealed class UeiPanel
     private readonly GridLayoutGroup _grid;
     private readonly RectTransform _gridContent;
     private readonly TMP_InputField _searchInput;
+    private GameObject _reviveButton = null!;
     private TextMeshProUGUI _pageText = null!;
     private TextMeshProUGUI _categoryText = null!;
     private TextMeshProUGUI _detailModeText = null!;
@@ -264,6 +266,7 @@ internal sealed class UeiPanel
         BeginShow();
 
         _root.transform.SetAsLastSibling();
+        UpdateCheatActionBar();
         UpdatePanelSize(camera);
         HandlePagingInput();
 
@@ -292,6 +295,7 @@ internal sealed class UeiPanel
         BeginShow();
 
         _root.transform.SetAsLastSibling();
+        UpdateCheatActionBar();
         UpdatePanelSize(camera);
         ClearChildren(_gridContent);
         _pageText.text = "...";
@@ -647,6 +651,16 @@ internal sealed class UeiPanel
         AddGearIcon(settings.transform);
         settings.onClick.AddListener(OpenSettings);
         BindTooltip(settings.gameObject, UeiI18n.T("button.settings"), UeiI18n.T("button.settings.desc"));
+
+        Button revive = AddButton(bar.transform, "Revive", string.Empty, SearchTextSize, SearchInputHeight, ReviveButtonWidth);
+        LayoutElement reviveLayout = revive.GetComponent<LayoutElement>();
+        reviveLayout.preferredWidth = ReviveButtonWidth;
+        reviveLayout.minWidth = ReviveButtonWidth;
+        AddReviveIcon(revive.transform);
+        revive.onClick.AddListener(HandleCheatRevive);
+        BindTooltip(revive.gameObject, UeiI18n.T("button.revive"), UeiI18n.T("button.revive.desc"));
+        _reviveButton = revive.gameObject;
+        _reviveButton.SetActive(false);
 
         return input;
     }
@@ -1306,12 +1320,37 @@ internal sealed class UeiPanel
         if (!HasCheatPermission())
         {
             UeiPlugin.SetCheatEnabled(false);
+            UpdateCheatActionBar();
             RefreshSettings();
             return;
         }
 
         UeiPlugin.SetCheatEnabled(!CheatConfigured());
+        UpdateCheatActionBar();
         RefreshSettings();
+    }
+
+    private void UpdateCheatActionBar()
+    {
+        if (_reviveButton == null)
+        {
+            return;
+        }
+
+        bool visible = CheatEnabled();
+        if (_reviveButton.activeSelf != visible)
+        {
+            _reviveButton.SetActive(visible);
+        }
+    }
+
+    private void HandleCheatRevive()
+    {
+        string status = TryCheatRevive()
+            ? UeiI18n.T("status.reviveDone")
+            : UeiI18n.T("status.reviveFailed");
+        _statusMessage = status;
+        UpdateSelectionText(FilterEntries().Count());
     }
 
     private void RefreshGrid()
@@ -1542,6 +1581,134 @@ internal sealed class UeiPanel
         catch (Exception ex)
         {
             UeiPlugin.LogWarning($"UEI cheat give failed for {entry.Id}: {ex.Message}");
+            return false;
+        }
+    }
+
+    private static bool TryCheatRevive()
+    {
+        if (!CheatEnabled())
+        {
+            return false;
+        }
+
+        if (TryRunConsoleCommand("heal"))
+        {
+            return true;
+        }
+
+        return TryRestoreBodyStateFallback();
+    }
+
+    private static bool TryRunConsoleCommand(string command)
+    {
+        try
+        {
+            ConsoleScript? console = ConsoleScript.instance;
+            if (console == null || string.IsNullOrWhiteSpace(command))
+            {
+                return false;
+            }
+
+            MethodInfo? method = typeof(ConsoleScript).GetMethod("TryExecuteCommand", InstanceLookup);
+            if (method == null)
+            {
+                return false;
+            }
+
+            method.Invoke(console, new object[] { new[] { command }, false });
+            return true;
+        }
+        catch (Exception ex)
+        {
+            UeiPlugin.LogWarning($"UEI cheat command '{command}' failed: {ex.Message}");
+            return false;
+        }
+    }
+
+    private static bool TryRestoreBodyStateFallback()
+    {
+        try
+        {
+            Body? body = PlayerCamera.main?.body;
+            if (body == null)
+            {
+                return false;
+            }
+
+            if (body.limbs != null)
+            {
+                foreach (Limb limb in body.limbs)
+                {
+                    if (limb == null)
+                    {
+                        continue;
+                    }
+
+                    limb.muscleHealth = 100f;
+                    limb.skinHealth = 100f;
+                    limb.boneHealTimer = 100f;
+                    limb.dislocationTimer = 100f;
+                    limb.infectionAmount = 0f;
+                    limb.bleedAmount = 0f;
+                    limb.pain = 0f;
+                    limb.shrapnel = 0;
+                    limb.infected = false;
+                }
+            }
+
+            body.brainHealth = 100f;
+            body.bloodVolume = 100f;
+            body.bloodOxygen = 100f;
+            body.bloodPressure = 120f;
+            body.heartRate = 80f;
+            body.bloodVesselSize = 100f;
+            body.bloodViscosity = 0f;
+            body.respiratoryRate = 70f;
+            body.strokeAmount = 0f;
+            body.hasPulmonaryEmbolism = false;
+            body.fibrillationProgress = 0f;
+            body.hunger = 100f;
+            body.thirst = 100f;
+            body.septicShock = 0f;
+            body.temperature = 37f;
+            body.sicknessAmount = 0f;
+            body.consciousness = 100f;
+            body.stamina = 100f;
+            body.energy = 100f;
+            body.happiness = 0f;
+            body.weightOffset = 0f;
+            body.radiationSickness = 0f;
+            body.disfigured = false;
+            body.eyeGone = false;
+            body.internalBleeding = 0f;
+            body.hemothorax = 0f;
+            body.traumaAmount = 0f;
+            body.dirtyness = 0f;
+            body.wetness = 0f;
+            body.badSleepAmount = 0f;
+            body.hearingLoss = 0f;
+            body.antidepressantHappiness = 0f;
+            body.opiateHappiness = 0f;
+            body.antibioticImmunityTime = 0f;
+            body.brainGrowSickness = 0f;
+            body.triedRollingLastStand = false;
+            body.succesfullyRolledLastStand = false;
+            body.lastStandTime = 0f;
+            body.adrenaline = 0f;
+            body.curAdrenaline = 0f;
+            body.venomCurrent = 0f;
+            body.venomTotal = 0f;
+            body.breathing = true;
+
+            try { body.Stand(force: true); } catch { }
+            try { PlayerCamera.main?.OnBecameConscious(); } catch { }
+            try { PlayerCamera.main?.DoAlert(UeiI18n.T("status.reviveDone"), important: false); } catch { }
+            return true;
+        }
+        catch (Exception ex)
+        {
+            UeiPlugin.LogWarning($"UEI revive fallback failed: {ex.Message}");
             return false;
         }
     }
@@ -2719,6 +2886,29 @@ internal sealed class UeiPanel
     private void AddGearPixel(Transform parent, string name, Vector2 size, Vector2 position, Color color)
     {
         GameObject go = AddImage(parent, "Gear." + name, color, raycast: false);
+        RectTransform rt = go.GetComponent<RectTransform>();
+        rt.anchorMin = new Vector2(0.5f, 0.5f);
+        rt.anchorMax = new Vector2(0.5f, 0.5f);
+        rt.pivot = new Vector2(0.5f, 0.5f);
+        rt.anchoredPosition = position;
+        rt.sizeDelta = size;
+    }
+
+    private void AddReviveIcon(Transform parent)
+    {
+        GameObject holder = NewUiObject("ReviveIcon", parent);
+        RectTransform rt = holder.GetComponent<RectTransform>();
+        rt.SetStretch();
+
+        AddIconPixel(holder.transform, "Cross.Vertical", new Vector2(4f, 14f), Vector2.zero, TextColor);
+        AddIconPixel(holder.transform, "Cross.Horizontal", new Vector2(14f, 4f), Vector2.zero, TextColor);
+        AddIconPixel(holder.transform, "Pulse.Left", new Vector2(3f, 3f), new Vector2(-7f, -5f), PixelBorderColor);
+        AddIconPixel(holder.transform, "Pulse.Right", new Vector2(3f, 3f), new Vector2(7f, 5f), PixelBorderColor);
+    }
+
+    private void AddIconPixel(Transform parent, string name, Vector2 size, Vector2 position, Color color)
+    {
+        GameObject go = AddImage(parent, name, color, raycast: false);
         RectTransform rt = go.GetComponent<RectTransform>();
         rt.anchorMin = new Vector2(0.5f, 0.5f);
         rt.anchorMax = new Vector2(0.5f, 0.5f);
