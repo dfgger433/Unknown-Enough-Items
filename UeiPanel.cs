@@ -47,6 +47,7 @@ internal sealed class UeiPanel
     private static readonly Color PixelBorderColor = new(0.72f, 0.76f, 0.78f, 1f);
     private static readonly Color TextColor = new(0.92f, 0.92f, 0.92f, 1f);
     private static readonly Color MutedTextColor = new(0.70f, 0.72f, 0.74f, 1f);
+    private static bool _ownsNativeTooltip;
 
     private readonly Canvas _canvas;
     private readonly int _uiLayer;
@@ -2396,8 +2397,28 @@ internal sealed class UeiPanel
         return body + "\n\n<color=#ffffff><sprite index=0 tint=1>" + weightLabel + ": " + info.weight.ToString("0.##") + "u";
     }
 
-    private static void ClearNativeTooltip()
+    internal static void SetNativeTooltip(string tipName, string tipDesc)
     {
+        try
+        {
+            if (GlobalDark.main != null && !string.IsNullOrWhiteSpace(tipName))
+            {
+                GlobalDark.main.SetTooltip((tipName, tipDesc ?? string.Empty));
+                _ownsNativeTooltip = true;
+            }
+        }
+        catch
+        {
+        }
+    }
+
+    internal static void ClearNativeTooltip()
+    {
+        if (!_ownsNativeTooltip)
+        {
+            return;
+        }
+
         try
         {
             if (GlobalDark.main != null)
@@ -2408,6 +2429,8 @@ internal sealed class UeiPanel
         catch
         {
         }
+
+        _ownsNativeTooltip = false;
     }
 
     private static Item? FindOwnedItem(string itemId)
@@ -3009,29 +3032,11 @@ internal sealed class UeiTooltipRelay : MonoBehaviour, IPointerEnterHandler, IPo
 
     private void PushTooltip()
     {
-        try
-        {
-            if (GlobalDark.main != null && !string.IsNullOrWhiteSpace(_tipName))
-            {
-                GlobalDark.main.SetTooltip((_tipName, _tipDesc));
-            }
-        }
-        catch
-        {
-        }
+        UeiPanel.SetNativeTooltip(_tipName, _tipDesc);
     }
 
     private static void ClearTooltip()
     {
-        try
-        {
-            if (GlobalDark.main != null)
-            {
-                GlobalDark.main.SetTooltip((string.Empty, string.Empty));
-            }
-        }
-        catch
-        {
-        }
+        UeiPanel.ClearNativeTooltip();
     }
 }

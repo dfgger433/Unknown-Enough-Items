@@ -4,6 +4,7 @@
     <LangVersion>latest</LangVersion>
     <Nullable>enable</Nullable>
     <ImplicitUsings>disable</ImplicitUsings>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
     <AssemblyName>UEI</AssemblyName>
     <RootNamespace>UEI</RootNamespace>
     <Version>1.1.0</Version>
@@ -13,9 +14,6 @@
     <TargetName>UEI.build</TargetName>
     <GameRoot>..\..</GameRoot>
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
-    <BaseIntermediateOutputPath>.msbuild\obj\</BaseIntermediateOutputPath>
-    <IntermediateOutputPath>.msbuild\obj\</IntermediateOutputPath>
-    <MSBuildProjectExtensionsPath>.msbuild\obj\</MSBuildProjectExtensionsPath>
     <OutputPath>$(GameRoot)\BepInEx\plugins\UEI\</OutputPath>
   </PropertyGroup>
 
@@ -46,6 +44,10 @@
     </Reference>
     <Reference Include="UnityEngine.InputLegacyModule">
       <HintPath>$(GameRoot)\CasualtiesUnknown_Data\Managed\UnityEngine.InputLegacyModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.TextRenderingModule">
+      <HintPath>$(GameRoot)\CasualtiesUnknown_Data\Managed\UnityEngine.TextRenderingModule.dll</HintPath>
       <Private>false</Private>
     </Reference>
     <Reference Include="UnityEngine.UI">
