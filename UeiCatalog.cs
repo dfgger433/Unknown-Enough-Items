@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
 using System.Text;
 using UnityEngine;
 
@@ -62,6 +63,182 @@ internal static class UeiFavorites
     public static string Serialize()
     {
         return string.Join("|", Favorites.OrderBy(x => x, StringComparer.OrdinalIgnoreCase));
+    }
+}
+
+internal static class RshLibHelper
+{
+    private static bool _available;
+    private static bool _loggedNotFound;
+    private static Type? _rshItemType;
+    private static FieldInfo? _spriteField;
+    private static System.Collections.IDictionary? _dict;
+
+    public static Sprite? GetCustomItemSprite(string itemId)
+    {
+        if (!EnsureAvailable() || _dict == null || _spriteField == null)
+        {
+            return null;
+        }
+
+        try
+        {
+            string baseId = GetBaseId(itemId);
+            object? rshItem = _dict[baseId];
+            if (rshItem == null)
+            {
+                return null;
+            }
+
+            return _spriteField.GetValue(rshItem) as Sprite;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    public static bool IsCustomItem(string itemId)
+    {
+        if (!EnsureAvailable() || _dict == null)
+        {
+            return false;
+        }
+
+        try
+        {
+            string baseId = GetBaseId(itemId);
+            return _dict.Contains(baseId);
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private static bool EnsureAvailable()
+    {
+        if (_available)
+        {
+            return true;
+        }
+
+        try
+        {
+            Type? pluginType = null;
+            foreach (Assembly asm in AppDomain.CurrentDomain.GetAssemblies())
+            {
+                pluginType = asm.GetType("RshLib.Plugin", throwOnError: false);
+                if (pluginType != null)
+                {
+                    break;
+                }
+            }
+
+            if (pluginType == null)
+            {
+                if (!_loggedNotFound)
+                {
+                    _loggedNotFound = true;
+                    UeiPlugin.LogInfo("UEI: RshLib not found, custom item support disabled.");
+                }
+                return false;
+            }
+
+            FieldInfo? regField = pluginType.GetField("itemRegistry",
+                BindingFlags.Public | BindingFlags.Static);
+            if (regField == null)
+            {
+                UeiPlugin.LogWarning("UEI: RshLib.Plugin found but itemRegistry field missing.");
+                return false;
+            }
+
+            object? registry = regField.GetValue(null);
+            if (registry == null)
+            {
+                UeiPlugin.LogWarning("UEI: RshLib itemRegistry is null.");
+                return false;
+            }
+
+            System.Collections.IDictionary dict;
+            try
+            {
+                dict = (System.Collections.IDictionary)registry;
+            }
+            catch
+            {
+                UeiPlugin.LogWarning("UEI: RshLib itemRegistry is not a dictionary.");
+                return false;
+            }
+
+            Type? rshItemType = null;
+            foreach (Assembly asm in AppDomain.CurrentDomain.GetAssemblies())
+            {
+                rshItemType = asm.GetType("RshLib.RshItem", throwOnError: false);
+                if (rshItemType != null)
+                {
+                    break;
+                }
+            }
+
+            if (rshItemType == null)
+            {
+                UeiPlugin.LogWarning("UEI: RshLib.Plugin found but RshItem type not found.");
+                return false;
+            }
+
+            FieldInfo? sf = rshItemType.GetField("sprite",
+                BindingFlags.Public | BindingFlags.Instance);
+            if (sf == null)
+            {
+                UeiPlugin.LogWarning("UEI: RshItem found but sprite field missing.");
+                return false;
+            }
+
+            _dict = dict;
+            _rshItemType = rshItemType;
+            _spriteField = sf;
+            _available = true;
+            UeiPlugin.LogInfo($"UEI: RshLib detected, custom item support enabled. Registry has {dict.Count} items.");
+            return true;
+        }
+        catch (Exception ex)
+        {
+            UeiPlugin.LogWarning($"UEI: RshLib probe failed: {ex.GetType().Name}: {ex.Message}");
+            return false;
+        }
+    }
+
+    public static string GetBaseId(string id)
+    {
+        if (string.IsNullOrEmpty(id))
+        {
+            return id;
+        }
+
+        int dollarIndex = id.IndexOf('$');
+        return dollarIndex >= 0 ? id.Substring(0, dollarIndex) : id;
+    }
+
+    public static string TryResolveKey(string fullId, UeiEntryKind kind, Dictionary<string, UeiEntry> entriesByKey)
+    {
+        string entryKey = UeiCatalog.EntryKey(kind, fullId);
+        if (entriesByKey.ContainsKey(entryKey))
+        {
+            return entryKey;
+        }
+
+        string baseId = GetBaseId(fullId);
+        if (baseId != fullId)
+        {
+            string baseKey = UeiCatalog.EntryKey(kind, baseId);
+            if (entriesByKey.ContainsKey(baseKey))
+            {
+                return baseKey;
+            }
+        }
+
+        return entryKey;
     }
 }
 
@@ -135,7 +312,20 @@ internal static class UeiCatalog
 
     public static bool TryGetEntry(UeiEntryKind kind, string id, out UeiEntry? entry)
     {
-        return EntriesByKey.TryGetValue(EntryKey(kind, id), out entry);
+        string key = EntryKey(kind, id);
+        if (EntriesByKey.TryGetValue(key, out entry))
+        {
+            return true;
+        }
+
+        string baseId = RshLibHelper.GetBaseId(id);
+        if (baseId != id)
+        {
+            return EntriesByKey.TryGetValue(EntryKey(kind, baseId), out entry);
+        }
+
+        entry = null;
+        return false;
     }
 
     public static List<UeiRecipeLink> GetProducedBy(UeiEntry entry)
@@ -327,10 +517,17 @@ internal static class UeiCatalog
             return;
         }
 
-        string key = EntryKey(recipe.result.isLiquid ? UeiEntryKind.Liquid : UeiEntryKind.Item, recipe.result.id);
-        if (!EntriesByKey.ContainsKey(key))
+        string fullId = recipe.result.id;
+        UeiEntryKind kind = recipe.result.isLiquid ? UeiEntryKind.Liquid : UeiEntryKind.Item;
+        string key = RshLibHelper.TryResolveKey(fullId, kind, EntriesByKey);
+        if (!EntriesByKey.ContainsKey(key) && !EntriesByKey.ContainsKey(EntryKey(kind, fullId)))
         {
             return;
+        }
+
+        if (!EntriesByKey.ContainsKey(key))
+        {
+            key = EntryKey(kind, fullId);
         }
 
         GetOrCreate(ProducedByLinks, key).Add(NewRecipeLink(recipe, recipeIndex, UeiRecipeRelation.ProducedBy));
@@ -369,7 +566,14 @@ internal static class UeiCatalog
         bool specific = item.specific || !string.IsNullOrWhiteSpace(item.specificId);
         if (specific)
         {
-            return string.Equals(item.specificId, entry.Id, StringComparison.OrdinalIgnoreCase);
+            string specificId = item.specificId ?? string.Empty;
+            if (string.Equals(specificId, entry.Id, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+
+            string specificBase = RshLibHelper.GetBaseId(specificId);
+            return string.Equals(specificBase, entry.Id, StringComparison.OrdinalIgnoreCase);
         }
 
         if (item.quality == null || string.IsNullOrWhiteSpace(item.quality.id))
@@ -479,6 +683,12 @@ internal static class UeiCatalog
 
     private static Sprite? SafeLoadItemSprite(string id)
     {
+        Sprite? customSprite = RshLibHelper.GetCustomItemSprite(id);
+        if (customSprite != null)
+        {
+            return customSprite;
+        }
+
         try
         {
             GameObject prefab = Resources.Load<GameObject>(id);
